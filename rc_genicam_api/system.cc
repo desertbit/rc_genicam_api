@@ -189,9 +189,9 @@ std::vector<std::shared_ptr<System> > System::getSystems()
         System *p=new System(name[i]);
         ret.push_back(std::shared_ptr<System>(p));
       }
-      catch (const std::exception &)
+      catch (const std::exception& e)
       {
-        // ignore transport layers that cannot be used
+        std::cerr << "catched exception while creating system from " << name[i] << ": " << e.what() << std::endl;
       }
     }
   }
