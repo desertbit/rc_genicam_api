@@ -204,10 +204,12 @@ GenTLWrapper::GenTLWrapper(const std::string &filename)
 
   *reinterpret_cast<void**>(&DSGetBufferChunkData)=getFunction(lp, "DSGetBufferChunkData");
 
-  *reinterpret_cast<void**>(&IFGetParentTL)=getFunction(lp, "IFGetParentTL");
-  *reinterpret_cast<void**>(&DevGetParentIF)=getFunction(lp, "DevGetParentIF");
-  *reinterpret_cast<void**>(&DSGetParentDev)=getFunction(lp, "DSGetParentDev");
+  // GenTL 1.4 is optional.
+  *reinterpret_cast<void**>(&IFGetParentTL)=getFunction(lp, "IFGetParentTL", false);
+  *reinterpret_cast<void**>(&DevGetParentIF)=getFunction(lp, "DevGetParentIF", false);
+  *reinterpret_cast<void**>(&DSGetParentDev)=getFunction(lp, "DSGetParentDev", false);
 
+  // GenTL 1.5 is optional.
   *reinterpret_cast<void**>(&DSGetNumBufferParts)=getFunction(lp, "DSGetNumBufferParts", false);
   *reinterpret_cast<void**>(&DSGetBufferPartInfo)=getFunction(lp, "DSGetBufferPartInfo", false);
 

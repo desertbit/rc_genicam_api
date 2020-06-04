@@ -52,6 +52,9 @@ enable_testing()
 if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RELEASE CACHE STRING "Build type: DEBUG or RELEASE" FORCE)
 endif ()
+if (CMAKE_BUILD_TYPE STREQUAL "DEBUG")
+    add_definitions(-DDEBUG)
+endif ()
 
 # - Standard definitions -
 set(CMAKE_CXX_STANDARD 11)

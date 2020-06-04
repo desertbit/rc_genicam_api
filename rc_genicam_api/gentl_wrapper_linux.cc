@@ -182,24 +182,36 @@ GenTLWrapper::GenTLWrapper(const std::string &filename)
 
   *reinterpret_cast<void**>(&DSGetBufferChunkData)=dlsym(lib, "DSGetBufferChunkData");
 
-  *reinterpret_cast<void**>(&IFGetParentTL)=dlsym(lib, "IFGetParentTL");
-  *reinterpret_cast<void**>(&DevGetParentIF)=dlsym(lib, "DevGetParentIF");
-  *reinterpret_cast<void**>(&DSGetParentDev)=dlsym(lib, "DSGetParentDev");
-
-  // GenTL 1.4 must be fully supported. Errors up until here are critical.
+  // GenTL 1.3 must be fully supported. Errors up until here are critical.
   const char* err1 = dlerror();
   if (err1 != 0) {
     dlclose(lib);
     throw std::invalid_argument(std::string("Cannot resolve GenTL symbol: ")+std::string(err1));
   }
 
+  // GenTL 1.4 is optional.
+  *reinterpret_cast<void**>(&IFGetParentTL)=dlsym(lib, "IFGetParentTL");
+  *reinterpret_cast<void**>(&DevGetParentIF)=dlsym(lib, "DevGetParentIF");
+  *reinterpret_cast<void**>(&DSGetParentDev)=dlsym(lib, "DSGetParentDev");
+
+  const char* err2 = dlerror();
+  if (err2 != 0) {
+    #ifdef DEBUG
+    std::cerr << "GenTL 1.4 not supported: " << std::string(err2) << std::endl;
+    #endif
+    return;
+  }
+
   // GenTL 1.5 is optional.
   *reinterpret_cast<void**>(&DSGetNumBufferParts)=dlsym(lib, "DSGetNumBufferParts");
   *reinterpret_cast<void**>(&DSGetBufferPartInfo)=dlsym(lib, "DSGetBufferPartInfo");
 
-  const char* err2 = dlerror();
-  if (err2 != 0) {
-    std::cerr << filename << " does not support GenTL 1.5; functionality is reduced (" << std::string(err2) << ")" << std::endl;
+  const char* err3 = dlerror();
+  if (err3 != 0) {
+    #ifdef DEBUG
+    std::cerr << "GenTL 1.5 not supported: " << std::string(err2) << std::endl;
+    #endif
+    return;
   }
 }
 
