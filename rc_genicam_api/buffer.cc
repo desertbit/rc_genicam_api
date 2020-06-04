@@ -109,7 +109,7 @@ template<class T> inline T getBufferPartValue(const std::shared_ptr<const GenTLW
   GenTL::INFO_DATATYPE type;
   size_t size=sizeof(T);
 
-  if (stream != 0 && buffer != 0)
+  if (stream != 0 && buffer != 0 && gentl->DSGetBufferPartInfo != NULL)
   {
     gentl->DSGetBufferPartInfo(stream, buffer, part, cmd, &type, &ret, &size);
   }
@@ -143,7 +143,7 @@ uint32_t Buffer::getNumberOfParts() const
 {
   uint32_t ret=0;
 
-  if (multipart)
+  if (multipart && gentl->DSGetNumBufferParts != NULL)
   {
     gentl->DSGetNumBufferParts(parent->getHandle(), buffer, &ret);
   }

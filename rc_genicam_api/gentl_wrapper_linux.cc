@@ -114,7 +114,7 @@ GenTLWrapper::GenTLWrapper(const std::string &filename)
 
   if (lib == 0)
   {
-    throw std::invalid_argument(std::string("Cannot open GenTL library: ")+dlerror());
+    throw std::invalid_argument(std::string("Cannot open GenTL library: ")+std::string(dlerror()));
   }
 
   dlerror(); // clear possible existing error
@@ -186,15 +186,20 @@ GenTLWrapper::GenTLWrapper(const std::string &filename)
   *reinterpret_cast<void**>(&DevGetParentIF)=dlsym(lib, "DevGetParentIF");
   *reinterpret_cast<void**>(&DSGetParentDev)=dlsym(lib, "DSGetParentDev");
 
+  // GenTL 1.4 must be fully supported. Errors up until here are critical.
+  const char* err1 = dlerror();
+  if (err1 != 0) {
+    dlclose(lib);
+    throw std::invalid_argument(std::string("Cannot resolve GenTL symbol: ")+std::string(err1));
+  }
+
+  // GenTL 1.5 is optional.
   *reinterpret_cast<void**>(&DSGetNumBufferParts)=dlsym(lib, "DSGetNumBufferParts");
   *reinterpret_cast<void**>(&DSGetBufferPartInfo)=dlsym(lib, "DSGetBufferPartInfo");
 
-  const char *err=dlerror();
-
-  if (err != 0)
-  {
-    dlclose(lib);
-    throw std::invalid_argument(std::string("Cannot resolve GenTL symbol: ")+err);
+  const char* err2 = dlerror();
+  if (err2 != 0) {
+    std::cerr << filename << " does not support GenTL 1.5; functionality is reduced (" << std::string(err2) << ")" << std::endl;
   }
 }
 

@@ -104,11 +104,11 @@ std::vector<std::string> getAvailableGenTLs(const char *paths)
 namespace
 {
 
-inline FARPROC getFunction(HMODULE lib, const char *name)
+inline FARPROC getFunction(HMODULE lib, const char *name, bool required=true)
 {
   FARPROC ret=GetProcAddress(lib, name);
 
-  if (ret == 0)
+  if (ret == 0 && required)
   {
     DWORD err=GetLastError();
 
@@ -208,8 +208,8 @@ GenTLWrapper::GenTLWrapper(const std::string &filename)
   *reinterpret_cast<void**>(&DevGetParentIF)=getFunction(lp, "DevGetParentIF");
   *reinterpret_cast<void**>(&DSGetParentDev)=getFunction(lp, "DSGetParentDev");
 
-  *reinterpret_cast<void**>(&DSGetNumBufferParts)=getFunction(lp, "DSGetNumBufferParts");
-  *reinterpret_cast<void**>(&DSGetBufferPartInfo)=getFunction(lp, "DSGetBufferPartInfo");
+  *reinterpret_cast<void**>(&DSGetNumBufferParts)=getFunction(lp, "DSGetNumBufferParts", false);
+  *reinterpret_cast<void**>(&DSGetBufferPartInfo)=getFunction(lp, "DSGetBufferPartInfo", false);
 
   lib=static_cast<void *>(lp);
 }
