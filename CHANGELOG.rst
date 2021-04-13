@@ -1,3 +1,57 @@
+2.5.1 (2021-03-16)
+------------------
+
+- Fixed compile problems under Windows
+- Fixed using wrong pointer in method Stream::getTLType()
+- Readme: Add link to release page
+- Removing redundent specification of namespace in some source files
+
+2.5.0 (2021-02-26)
+------------------
+
+- Upgrading GenICam reference implementation to version 3.3
+- Added support for storing images of format RGB8 and BayerXX8
+- Increasing discover timeout from 100 ms to 1 s, which is necessary for some cameras
+- Resetting chunk adapter in gc_stream if user explicitely disables chunk data
+- Added tool gc_file for reading / writing user data from / to a GenICam device
+- Integrated attaching buffers to nodemap into stream and buffer classes
+- Added support for handling payload type chunk data for supporting Basler ace cameras
+- Updated handling of PTP in gc_config tool using the new feature names
+- Correct exception message if png can't be stored
+- Rename adaptive_out1_reduction to out1_reduction in stored parameter file
+
+2.4.4 (2020-10-23)
+------------------
+
+- Trying to fix problem that interface handle becomes invalid
+
+2.4.3 (2020-10-22)
+------------------
+
+- Improved reporting of exceptions
+
+2.4.2 (2020-10-22)
+------------------
+
+- Added some optional Roboception specific information to the parameter files
+- Fixed crashing of gc_info if getting nodemap from device fails
+- Fixed getEnum crash if enum doesn't contain a value
+
+2.4.1 (2020-07-31)
+------------------
+
+- Enabled building for ROS focal on gitlab
+
+2.4.0 (2020-07-27)
+------------------
+
+- gc_stream now puts status of GPIO out and in lines in two separate bit fields in file name
+
+2.3.7 (2020-07-27)
+------------------
+
+- Improved finding devices, e.g. by IP if GenTL provider supports this
+
 2.3.6 (2020-04-17)
 ------------------
 

@@ -555,18 +555,29 @@ int64_t getInteger(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const ch
     {
       if (GenApi::IsReadable(node))
       {
-        GenApi::IInteger *val=dynamic_cast<GenApi::IInteger *>(node);
-
-        if (val != 0)
+        if (node->GetPrincipalInterfaceType() == GenApi::intfIEnumeration)
         {
-          ret=val->GetValue(false, igncache);
+          GenApi::IEnumeration *p=dynamic_cast<GenApi::IEnumeration *>(node);
+          ret=p->GetCurrentEntry(false, igncache)->GetValue();
 
-          if (vmin != 0) *vmin=val->GetMin();
-          if (vmax != 0) *vmax=val->GetMax();
+          if (vmin != 0) *vmin=ret;
+          if (vmax != 0) *vmax=ret;
         }
-        else if (exception)
+        else
         {
-          throw std::invalid_argument(std::string("Feature not integer: ")+name);
+          GenApi::IInteger *val=dynamic_cast<GenApi::IInteger *>(node);
+
+          if (val != 0)
+          {
+            ret=val->GetValue(false, igncache);
+
+            if (vmin != 0) *vmin=val->GetMin();
+            if (vmax != 0) *vmax=val->GetMax();
+          }
+          else if (exception)
+          {
+            throw std::invalid_argument(std::string("Feature not integer: ")+name);
+          }
         }
       }
       else if (exception)
@@ -714,14 +725,23 @@ std::string getEnum(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const c
 
         if (val != 0)
         {
-          ret=val->GetCurrentEntry()->GetSymbolic();
+          GenApi::StringList_t entries;
+          val->GetSymbolics(entries);
 
-          GenApi::StringList_t entry;
-          val->GetSymbolics(entry);
-
-          for (size_t i=0; i<entry.size(); i++)
+          for (size_t i=0; i<entries.size(); i++)
           {
-            list.push_back(std::string(entry[i]));
+            list.push_back(std::string(entries[i]));
+          }
+
+          GenApi::IEnumEntry *entry=val->GetCurrentEntry();
+
+          if (entry != 0)
+          {
+            ret=entry->GetSymbolic();
+          }
+          else if (exception)
+          {
+            throw std::invalid_argument(std::string("Current value is not defined: ")+name);
           }
         }
         else if (exception)
@@ -858,7 +878,7 @@ std::string getString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const
 void checkFeature(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *name,
                   const char *value, bool igncache)
 {
-  std::string cvalue=rcg::getString(nodemap, name, true, igncache);
+  std::string cvalue=getString(nodemap, name, true, igncache);
 
   if (cvalue != "" && cvalue != value)
   {
@@ -893,7 +913,7 @@ std::shared_ptr<GenApi::CChunkAdapter> getChunkAdapter(const std::shared_ptr<Gen
 }
 
 std::string getComponetOfPart(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap,
-                              const rcg::Buffer *buffer, uint32_t ipart)
+                              const Buffer *buffer, uint32_t ipart)
 {
   std::string component;
 
