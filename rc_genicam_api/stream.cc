@@ -120,18 +120,18 @@ void Stream::close()
   if (n_open > 0)
   {
     n_open--;
-  }
 
-  if (n_open == 0)
-  {
-    stopStreaming();
-    gentl->DSClose(stream);
-    stream=0;
+    if (n_open == 0)
+    {
+      stopStreaming();
+      gentl->DSClose(stream);
+      stream=0;
 
-    buffer.setNodemap(0, "");
+      buffer.setNodemap(0, "");
 
-    nodemap=0;
-    cport=0;
+      nodemap=0;
+      cport=0;
+    }
   }
 }
 
@@ -151,7 +151,12 @@ void Stream::attachBuffers(bool enable)
   }
 }
 
-void Stream::startStreaming(int na)
+void Stream::startStreaming(int nacquire)
+{
+  startStreaming(nacquire, 4);
+}
+
+void Stream::startStreaming(int nacquire, int min_buffers)
 {
   std::lock_guard<std::recursive_mutex> lock(mtx);
 
@@ -188,12 +193,11 @@ void Stream::startStreaming(int na)
   }
   else
   {
-    std::shared_ptr<GenApi::CNodeMapRef> nmap=parent->getRemoteNodeMap();
-    GenApi::IInteger *p=dynamic_cast<GenApi::IInteger *>(nmap->_GetNode("PayloadSize"));
+    GenApi::IInteger *pp=dynamic_cast<GenApi::IInteger *>(nmap->_GetNode("PayloadSize"));
 
-    if (GenApi::IsReadable(p))
+    if (GenApi::IsReadable(pp))
     {
-      size=static_cast<size_t>(p->GetValue());
+      size=static_cast<size_t>(pp->GetValue());
     }
   }
 
@@ -201,18 +205,18 @@ void Stream::startStreaming(int na)
 
   bool err=false;
 
-  bn=std::max(static_cast<size_t>(8), getBufAnnounceMin());
+  bn=std::max(static_cast<size_t>(min_buffers), getBufAnnounceMin());
   for (size_t i=0; i<bn; i++)
   {
-    GenTL::BUFFER_HANDLE p=0;
+    GenTL::BUFFER_HANDLE pp=0;
 
-    if (gentl->DSAllocAndAnnounceBuffer(stream, size, 0, &p) != GenTL::GC_ERR_SUCCESS)
+    if (gentl->DSAllocAndAnnounceBuffer(stream, size, 0, &pp) != GenTL::GC_ERR_SUCCESS)
     {
       err=true;
       break;
     }
 
-    if (!err && gentl->DSQueueBuffer(stream, p) != GenTL::GC_ERR_SUCCESS)
+    if (!err && gentl->DSQueueBuffer(stream, pp) != GenTL::GC_ERR_SUCCESS)
     {
       err=true;
       break;
@@ -231,9 +235,9 @@ void Stream::startStreaming(int na)
 
   uint64_t n=GENTL_INFINITE;
 
-  if (na > 0)
+  if (nacquire > 0)
   {
-    n=static_cast<uint64_t>(na);
+    n=static_cast<uint64_t>(nacquire);
   }
 
   if (!err && gentl->DSStartAcquisition(stream, GenTL::ACQ_START_FLAGS_DEFAULT, n) !=
@@ -255,15 +259,14 @@ void Stream::startStreaming(int na)
   {
     gentl->DSFlushQueue(stream, GenTL::ACQ_QUEUE_ALL_DISCARD);
 
-    GenTL::BUFFER_HANDLE p=0;
-    while (gentl->DSGetBufferID(stream, 0, &p) == GenTL::GC_ERR_SUCCESS)
+    GenTL::BUFFER_HANDLE pp=0;
+    while (gentl->DSGetBufferID(stream, 0, &pp) == GenTL::GC_ERR_SUCCESS)
     {
-      gentl->DSRevokeBuffer(stream, p, 0, 0);
+      gentl->DSRevokeBuffer(stream, pp, 0, 0);
     }
 
     // unlock parameters
 
-    std::shared_ptr<GenApi::CNodeMapRef> nmap=parent->getRemoteNodeMap();
     GenApi::IInteger *pi=dynamic_cast<GenApi::IInteger *>(nmap->_GetNode("TLParamsLocked"));
 
     if (GenApi::IsWritable(pi))
@@ -318,6 +321,24 @@ void Stream::stopStreaming()
   }
 }
 
+int Stream::getAvailableBufferCount()
+{
+  size_t ret=0;
+
+  GenTL::INFO_DATATYPE type;
+  size_t size=sizeof(ret);
+
+  if (bn > 0 && event != 0)
+  {
+    if (gentl->EventGetInfo(event, GenTL::EVENT_NUM_IN_QUEUE, &type, &ret, &size) != GenTL::GC_ERR_SUCCESS)
+    {
+      ret=0;
+    }
+  }
+
+  return static_cast<int>(ret);
+}
+
 const Buffer *Stream::grab(int64_t _timeout)
 {
   std::lock_guard<std::recursive_mutex> lock(mtx);
@@ -330,7 +351,7 @@ const Buffer *Stream::grab(int64_t _timeout)
 
   // check that streaming had been started
 
-  if (bn == 0 && event == 0)
+  if (bn == 0 || event == 0)
   {
     throw GenTLException("Streaming::grab(): Streaming not started");
   }

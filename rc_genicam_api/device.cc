@@ -141,21 +141,21 @@ void Device::close()
   if (n_open > 0)
   {
     n_open--;
-  }
 
-  if (n_open == 0)
-  {
-    gentl->DevClose(dev);
-    dev=0;
-    rp=0;
+    if (n_open == 0)
+    {
+      gentl->DevClose(dev);
+      dev=0;
+      rp=0;
 
-    nodemap=0;
-    rnodemap=0;
+      nodemap=0;
+      rnodemap=0;
 
-    cport=0;
-    rport=0;
+      cport=0;
+      rport=0;
 
-    parent->close();
+      parent->close();
+    }
   }
 }
 
@@ -185,7 +185,7 @@ std::vector<std::shared_ptr<Stream> > Device::getStreams()
 
   if (dev != 0)
   {
-    // get list of previously requested devices that are still in use
+    // get list of previously requested streams that are still in use
 
     std::vector<std::shared_ptr<Stream> > current;
 
@@ -198,7 +198,7 @@ std::vector<std::shared_ptr<Stream> > Device::getStreams()
       }
     }
 
-    // create list of interfaces, using either existing interfaces or
+    // create list of streams, using either existing streams or
     // instantiating new ones
 
     uint32_t n=0;
@@ -229,7 +229,7 @@ std::vector<std::shared_ptr<Stream> > Device::getStreams()
       }
     }
 
-    // update internal list of devices for reusage on next call
+    // update internal list of streams for reusage on next call
 
     slist.clear();
     for (size_t i=0; i<ret.size(); i++)

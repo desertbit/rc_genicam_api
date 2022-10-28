@@ -1,3 +1,102 @@
+2.5.17 (2022-10-13)
+-------------------
+
+- Added building for Jammy
+- Added possibility to specify GenICam parameters on the command line of gc_pointcloud tool
+- README: change grep for newer netstat versions
+
+2.5.16 (2022-05-29)
+-------------------
+
+- Added CI build pipelines for ARM64
+- net_perf_check.sh use first default interface
+- Show enum options even if WriteOnly
+
+2.5.14 (2022-02-02)
+-------------------
+
+- Install licenses of included binaries
+- Reporting interface id instead of display name in output of gc_info -s
+
+2.5.13 (2022-01-31)
+-------------------
+
+- Added parameter '-s' to gc_info for getting a short list of discovered devices
+- Fixed Windows build script
+
+2.5.12 (2021-10-23)
+-------------------
+
+- Imporved Windows build script for compiling with libpng
+- Fixed some issues when compiling under Windows
+
+2.5.11 (2021-10-05)
+-------------------
+
+- Fixed getting buffers with chunk data from Basler ace2 USB cameras
+
+2.5.10 (2021-10-01)
+-------------------
+
+- Make system, interface, device and stream ignore closing already closed objects
+
+2.5.9 (2021-10-01)
+------------------
+
+- Improved measuring of buffers per second in gc_stream
+- Do not show latency in gc_stream -t if PTP is turned off
+
+2.5.8 (2021-09-09)
+------------------
+
+- Added support for YUV422_8 and YCbCr422_8 pixel formats
+
+2.5.7 (2021-09-01)
+------------------
+
+- Added possibility to specify the internal number of buffers to allocate
+- gc_file tool: Exit with error if file cannot be loaded
+
+2.5.6 (2021-08-02)
+------------------
+
+- Changed ImageList::find with tolerance > 0 to return the closest within tolerance
+
+2.5.5 (2021-07-28)
+------------------
+
+- Fixed rounding when converting between color and monochrome images
+- Reduce minimum number of buffers
+- Do not attach chunk data handler to incomplete buffer
+
+2.5.4 (2021-07-25)
+------------------
+
+- Fixed reporting of operation status of gc_file tool
+
+2.5.3 (2021-07-17)
+------------------
+
+- Added build script for Visual Studio
+- Added methods for getting region id and data purpose id from buffer
+- On Windows, also try to find producers in sub directories of current library
+- Fixed some compiler warnings
+- Improved error message when writing on cport fails
+- Fixed conversion from YCbCr411 format to Mono8 in convertImage() function
+- Improved error message when setting invalid enum
+- Added support for RGB8 color format in getColor() function
+
+2.5.2 (2021-07-06)
+------------------
+
+- Added possibility for configuration of multiple Gev interfaces in gc_config
+- Fixed printing of Mac address in gc_info
+- Added method to stream object for checking the number of buffers available for grabbing
+- Treating missing parameters in Buffer as 0
+- Changed way how to define different path for locating producers
+- Added possibility to discover producers in non-default locations and ignoring a specific producer
+- Added possibility to store xml file with gc_info with original name
+
 2.5.1 (2021-03-16)
 ------------------
 

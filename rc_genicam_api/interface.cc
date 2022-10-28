@@ -104,17 +104,17 @@ void Interface::close()
   if (n_open > 0)
   {
     n_open--;
-  }
 
-  if (n_open == 0)
-  {
-    gentl->IFClose(ifh);
-    ifh=0;
+    if (n_open == 0)
+    {
+      gentl->IFClose(ifh);
+      ifh=0;
 
-    nodemap=0;
-    cport=0;
+      nodemap=0;
+      cport=0;
 
-    parent->close();
+      parent->close();
+    }
   }
 }
 
@@ -185,7 +185,7 @@ std::vector<std::shared_ptr<Device> > Interface::getDevices()
       throw GenTLException(std::string("Interface::getDevices() (1) ")+id+" "+std::to_string(err), gentl);
     }
 
-    // create list of interfaces, using either existing interfaces or
+    // create list of devices, using either existing devices or
     // instantiating new ones
 
     uint32_t n=0;

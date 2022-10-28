@@ -106,7 +106,7 @@ std::string formatValue(GenApi::IInteger *node, int64_t value)
        break;
 
     case GenApi::MACAddress:
-       out << std::hex << ((value>>32)&0xff) << ':' << ((value>>30)&0xff) << ':'
+       out << std::hex << ((value>>40)&0xff) << ':' << ((value>>32)&0xff) << ':'
                        << ((value>>24)&0xff) << ':' << ((value>>16)&0xff) << ':'
                        << ((value>>8)&0xff) << ':' << (value&0xff);
        break;
@@ -252,7 +252,7 @@ void printNode(const std::string &prefix, GenApi::INode *node, int depth)
 
           GenApi::IEnumeration *p=dynamic_cast<GenApi::IEnumeration *>(node);
 
-          if (GenApi::IsReadable(p))
+          if (p != nullptr)
           {
             std::cout << '[';
 
@@ -271,7 +271,7 @@ void printNode(const std::string &prefix, GenApi::INode *node, int depth)
 
             std::cout << "]: ";
 
-            if (p->GetCurrentEntry() != 0)
+            if (GenApi::IsReadable(p->GetAccessMode()) && p->GetCurrentEntry() != 0)
             {
               std::cout << p->GetCurrentEntry()->GetSymbolic();
             }
@@ -361,6 +361,41 @@ int main(int argc, char *argv[])
           system[i]->close();
         }
       }
+      else if (std::string(argv[1]) == "-s")
+      {
+        // list all systems, interfaces and devices
+
+        std::vector<std::shared_ptr<rcg::System> > system=rcg::System::getSystems();
+
+        std::cout << "Interface\tSerial Number\tVendor\tModel\tName" << std::endl;
+
+        for (size_t i=0; i<system.size(); i++)
+        {
+          system[i]->open();
+
+          std::vector<std::shared_ptr<rcg::Interface> > interf=system[i]->getInterfaces();
+
+          for (size_t k=0; k<interf.size(); k++)
+          {
+            interf[k]->open();
+
+            std::vector<std::shared_ptr<rcg::Device> > device=interf[k]->getDevices();
+
+            for (size_t j=0; j<device.size(); j++)
+            {
+              std::cout << interf[k]->getID() << '\t'
+                        << device[j]->getSerialNumber() << '\t'
+                        << device[j]->getVendor() << '\t'
+                        << device[j]->getModel() << '\t'
+                        << device[j]->getDisplayName() << std::endl;
+            }
+
+            interf[k]->close();
+          }
+
+          system[i]->close();
+        }
+      }
       else
       {
         int k=1;
@@ -372,6 +407,11 @@ int main(int argc, char *argv[])
         {
           k++;
           xml=argv[k++];
+
+          if (std::string(xml) == ".")
+          {
+            xml="";
+          }
         }
 
         if (k < argc)
@@ -510,14 +550,15 @@ int main(int argc, char *argv[])
     }
     else
     {
-      std::cout << argv[0] << " -h | -l | ([-o <xml-output-file>] [<interface-id>:]<device-id>[?<node>] [<key>=<value>] ...)" << std::endl;
+      std::cout << argv[0] << " -h | -l | -s | ([-o <xml-output-file>|.] [<interface-id>:]<device-id>[?<node>] [<key>=<value>] ...)" << std::endl;
       std::cout << std::endl;
       std::cout << "Provides information about GenICam transport layers, interfaces and devices." << std::endl;
       std::cout << std::endl;
       std::cout << "Options: " << std::endl;
       std::cout << "-h   Prints help information and exits" << std::endl;
       std::cout << "-l   List all all available devices on all interfaces" << std::endl;
-      std::cout << "-o   Filename to store XML description from specified device" << std::endl;
+      std::cout << "-s   List all all available devices on all interfaces (short format)" << std::endl;
+      std::cout << "-o   Store XML description from specified device" << std::endl;
       std::cout << std::endl;
       std::cout << "Parameters:" << std::endl;
       std::cout << "<interface-id> Optional GenICam ID of interface for connecting to the device" << std::endl;
