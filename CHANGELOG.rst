@@ -1,3 +1,84 @@
+2.7.0 (2024-12-02)
+------------------
+
+- Added possibility to receive module events for a device
+- gc_info: Added interface to test receiving module events
+- Improved exception message when opening device is failing
+- Fixed crashing when stream and device is closed after loosing connection
+
+2.6.8 (2024-10-16)
+------------------
+
+- gc_stream:
+  - split RawCombined like IntensityCombined
+  - apply writable chunk parameters every time after attaching the buffer
+
+- gc_file:
+  - Fixed possible problem when reading file via gc_file
+
+2.6.7 (2024-08-23)
+------------------
+
+- Added functions and parameters to command line tools for loading and storing streamable parameters
+- Throw an exception if an image buffer does not contain any data
+- Added methods and function with timeout parameters for device discovery
+
+2.6.6 (2024-06-04)
+------------------
+
+- Added armhf jobs for jammy
+
+2.6.5 (2024-03-12)
+------------------
+
+- Added method to get remote port of device to directly read and write register
+- Added functions to read and write GenICam register parameters
+- Fixed write error message of gc_file tool
+- fix for gcc 13: use global stdint
+
+2.6.4 (2023-11-09)
+------------------
+
+- Fixed loading nodemap from file system
+- Return device display name, if device user defined name returns an error
+
+2.6.3 (2023-10-06)
+------------------
+
+- gc_config:
+  -Fixed calling data latch to properly show PTP status
+- gc_info:
+  - Added choice to either use local or remote nodemap of device
+  - Added extended output that includes printing the local nodemaps of system, interface and device as well
+
+2.6.2 (2023-05-17)
+------------------
+
+- If available, use user defined name of device as display name
+- Moving function for printing (part of) nodemap from tools to library
+- gc_info:
+  - Added possibility to edit nodemap in curses gui
+- gc_stream:
+  - Storing ChunkRcLineRatio in properties, if available
+  - Added option to print chunk data
+- Fixed build_win.bat: Include cmake files and allow renaming of base directory
+- Fixed allocating too much memory in Image class
+
+2.6.1 (2023-01-09)
+------------------
+
+- Fixed resetting of systems so that setSystemsPath() can be called again
+- Report reason if loading of producer fails
+- Fixed compiling under Windows
+- Fixed reading registers with size that is less than the requested size
+- Added convenience functions for loading and storing data on the camera via GenICam file interface
+
+2.6.0 (2022-11-09)
+------------------
+
+- Upgraded GenAPI to version 3.4
+- Changed gc_file to read and write in blocks of 512 bytes and made FileSize parameter optional
+
 2.5.17 (2022-10-13)
 -------------------
 

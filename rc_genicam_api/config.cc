@@ -38,14 +38,22 @@
 
 #include <stdexcept>
 #include <iomanip>
+#include <limits>
+#include <fstream>
 
 #include "Base/GCException.h"
 
 #include <GenApi/ChunkAdapterGEV.h>
 #include <GenApi/ChunkAdapterU3V.h>
 #include <GenApi/ChunkAdapterGeneric.h>
+#include <GenApi/Filestream.h>
 
 #include <rc_genicam_api/pixel_formats.h>
+
+#ifdef _WIN32
+#undef min
+#undef max
+#endif
 
 namespace rcg
 {
@@ -355,6 +363,53 @@ bool setEnum(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *na
   return ret;
 }
 
+size_t setRegister(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *name,
+  const uint8_t *buffer, size_t len, bool exception)
+{
+  size_t ret=0;
+
+  try
+  {
+    GenApi::INode *node=nodemap->_GetNode(name);
+
+    if (node != 0)
+    {
+      if (GenApi::IsWritable(node))
+      {
+        GenApi::IRegister *val=dynamic_cast<GenApi::IRegister *>(node);
+
+        if (val != 0)
+        {
+          len=std::min(len, static_cast<size_t>(val->GetLength()));
+          val->Set(buffer, len);
+          ret=len;
+        }
+        else if (exception)
+        {
+          throw std::invalid_argument(std::string("Feature not of type register: ")+name);
+        }
+      }
+      else if (exception)
+      {
+        throw std::invalid_argument(std::string("Feature not writable: ")+name);
+      }
+    }
+    else if (exception)
+    {
+      throw std::invalid_argument(std::string("Feature not found: ")+name);
+    }
+  }
+  catch (const GENICAM_NAMESPACE::GenericException &ex)
+  {
+    if (exception)
+    {
+      throw std::invalid_argument(ex.what());
+    }
+  }
+
+  return ret;
+}
+
 bool setString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *name,
                const char *value, bool exception)
 {
@@ -469,6 +524,29 @@ bool setString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *
                 throw std::invalid_argument(std::string("Enumeration '")+name+
                                             "' does not contain: "+value);
               }
+            }
+            break;
+
+          case GenApi::intfIRegister:
+            {
+              GenApi::IRegister *p=dynamic_cast<GenApi::IRegister *>(node);
+
+              std::string s=value;
+
+              size_t n=s.find_first_not_of("0123456789abcdefABCDEF");
+              if (n != std::string::npos)
+              {
+                throw std::invalid_argument(std::string("Register '")+name+
+                  "only accepts hedadecimal values: "+s);
+              }
+
+              std::vector<uint8_t> buffer;
+              for (size_t i=0; i<s.size()-1; i+=2)
+              {
+                buffer.push_back(stoi(s.substr(i, 2), 0, 16));
+              }
+
+              p->Set(buffer.data(), std::min(buffer.size(), static_cast<size_t>(p->GetLength())));
             }
             break;
 
@@ -784,6 +862,59 @@ std::string getEnum(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const c
   return ret;
 }
 
+size_t getRegister(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *name,
+  uint8_t *buffer, size_t len, size_t *total, bool exception, bool igncache)
+{
+  size_t ret=0;
+
+  if (total != 0) *total=0;
+
+  try
+  {
+    GenApi::INode *node=nodemap->_GetNode(name);
+
+    if (node != 0)
+    {
+      if (GenApi::IsReadable(node))
+      {
+        GenApi::IRegister *p=dynamic_cast<GenApi::IRegister *>(node);
+
+        if (p != 0)
+        {
+          size_t n=static_cast<size_t>(p->GetLength());
+
+          if (total) *total=n;
+
+          len=std::min(len, n);
+          p->Get(buffer, static_cast<int64_t>(len));
+          ret=len;
+        }
+        else if (exception)
+        {
+          throw std::invalid_argument(std::string("Feature not of type register: ")+name);
+        }
+      }
+      else if (exception)
+      {
+        throw std::invalid_argument(std::string("Feature not readable: ")+name);
+      }
+    }
+    else if (exception)
+    {
+      throw std::invalid_argument(std::string("Feature not found: ")+name);
+    }
+  }
+  catch (const GENICAM_NAMESPACE::GenericException &ex)
+  {
+    if (exception)
+    {
+      throw std::invalid_argument(ex.what());
+    }
+  }
+
+  return ret;
+}
+
 std::string getString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *name,
                       bool exception, bool igncache)
 {
@@ -850,6 +981,23 @@ std::string getString(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const
             {
               GenApi::IEnumeration *p=dynamic_cast<GenApi::IEnumeration *>(node);
               out << p->GetCurrentEntry()->GetSymbolic();
+            }
+            break;
+
+          case GenApi::intfIRegister:
+            {
+              GenApi::IRegister *p=dynamic_cast<GenApi::IRegister *>(node);
+
+              int len=std::min(static_cast<int>(p->GetLength()), 32);
+
+              uint8_t buffer[32];
+              p->Get(buffer, len);
+
+              out << std::hex;
+              for (int i=0; i<len; i++)
+              {
+                out << std::setfill('0') << std::setw(2) << static_cast<int>(buffer[i]);
+              }
             }
             break;
 
@@ -1006,6 +1154,190 @@ std::string getComponetOfPart(const std::shared_ptr<GenApi::CNodeMapRef> &nodema
   }
 
   return component;
+}
+
+std::string loadFile(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *name,
+                     bool exception)
+{
+  std::string ret;
+
+  // load file in pieces of 512 bytes
+
+  GenApi::FileProtocolAdapter rf;
+  rf.attach(nodemap->_Ptr);
+
+  if (rf.openFile(name, std::ios::in))
+  {
+    int length=std::numeric_limits<int>::max();
+    try
+    {
+      // limit read operation to file size, if available
+      length=rcg::getInteger(nodemap, "FileSize", 0, 0, true);
+    }
+    catch (const std::exception &)
+    { }
+
+    size_t off=0, n=512;
+    std::vector<char> buffer(512);
+
+    while (n > 0 && length > 0)
+    {
+      n=rf.read(buffer.data(), off, std::min(length, static_cast<int>(buffer.size())), name);
+
+      if (n == 0)
+      {
+        // workaround for reading last partial block if camera reports failure
+
+        n=rcg::getInteger(nodemap, "FileOperationResult");
+
+        if (n > 0)
+        {
+          n=rf.read(buffer.data(), off, n, name);
+        }
+      }
+
+      if (n > 0)
+      {
+        ret.append(buffer.data(), n);
+      }
+
+      off+=n;
+      length-=n;
+    }
+
+    rf.closeFile(name);
+  }
+  else
+  {
+    if (exception)
+    {
+      throw std::invalid_argument(std::string("Cannot open file for reading: ")+name);
+    }
+  }
+
+  return ret;
+}
+
+bool saveFile(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *name,
+  const std::string &data, bool exception)
+{
+  bool ret=true;
+
+  // store in pieces of 512 bytes
+
+  GenApi::FileProtocolAdapter rf;
+  rf.attach(nodemap->_Ptr);
+
+  if (rf.openFile(name, std::ios::out))
+  {
+    size_t off=0, n=512;
+    while (n > 0)
+    {
+      n=rf.write(data.c_str()+off, off, std::min(static_cast<size_t>(512), data.size()-off), name);
+      off+=n;
+    }
+
+    rf.closeFile(name);
+
+    if (off != data.size())
+    {
+      if (exception)
+      {
+        std::ostringstream out;
+        out << "Error: Can only write " << off << " of " << data.size() << " bytes";
+        throw std::invalid_argument(out.str());
+      }
+
+      ret=false;
+    }
+  }
+  else
+  {
+    if (exception)
+    {
+      throw std::invalid_argument(std::string("Cannot open file for writing: ")+name);
+    }
+
+    ret=false;
+  }
+
+  return ret;
+}
+
+bool loadStreamableParameters(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *name,
+  bool exception)
+{
+  bool ret=false;
+
+  try
+  {
+    GenApi::CFeatureBag bag;
+
+    std::ifstream in;
+    in.exceptions(std::ios_base::failbit | std::ios_base::badbit);
+
+    in.open(name);
+    in >> bag;
+    in.close();
+
+    bag.LoadFromBag(nodemap->_Ptr, true);
+
+    ret=true;
+  }
+  catch (const std::exception &ex)
+  {
+    if (exception)
+    {
+      throw std::invalid_argument(ex.what());
+    }
+  }
+  catch (const GENICAM_NAMESPACE::GenericException &ex)
+  {
+    if (exception)
+    {
+      throw std::invalid_argument(ex.what());
+    }
+  }
+
+  return ret;
+}
+
+bool saveStreamableParameters(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap, const char *name,
+  bool exception)
+{
+  bool ret=false;
+
+  try
+  {
+    GenApi::CFeatureBag bag;
+
+    bag.StoreToBag(nodemap->_Ptr);
+
+    std::ofstream out;
+    out.exceptions(std::ios_base::failbit | std::ios_base::badbit);
+
+    out.open(name);
+    out << bag;
+    out.close();
+
+    ret=true;
+  }
+  catch (const std::exception &ex)
+  {
+    if (exception)
+    {
+      throw std::invalid_argument(ex.what());
+    }
+  }
+  catch (const GENICAM_NAMESPACE::GenericException &ex)
+  {
+    if (exception)
+    {
+      throw std::invalid_argument(ex.what());
+    }
+  }
+
+  return ret;
 }
 
 }

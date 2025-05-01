@@ -40,10 +40,15 @@
 
 #include <cstring>
 
+#ifdef _WIN32
+#undef min
+#undef max
+#endif
+
 namespace rcg
 {
 
-Image::Image(const Buffer *buffer, std::uint32_t part)
+Image::Image(const Buffer *buffer, uint32_t part)
 {
   if (buffer->getImagePresent(part))
   {
@@ -59,7 +64,12 @@ Image::Image(const Buffer *buffer, std::uint32_t part)
     pixelformat=buffer->getPixelFormat(part);
     bigendian=buffer->isBigEndian();
 
-    const size_t size=buffer->getSize(part);
+    const size_t size=std::min(buffer->getSize(part), buffer->getSizeFilled());
+
+    if (buffer->getSizeFilled() == 0)
+    {
+      throw GenTLException("Image without data");
+    }
 
     pixel.reset(new uint8_t [size]);
 

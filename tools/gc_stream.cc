@@ -1,7 +1,7 @@
 /*
  * This file is part of the rc_genicam_api package.
  *
- * Copyright (c) 2017-2019 Roboception GmbH
+ * Copyright (c) 2017-2024 Roboception GmbH
  * All rights reserved
  *
  * Author: Heiko Hirschmueller
@@ -41,6 +41,7 @@
 #include <rc_genicam_api/image.h>
 #include <rc_genicam_api/image_store.h>
 #include <rc_genicam_api/config.h>
+#include <rc_genicam_api/nodemap_out.h>
 
 #include <rc_genicam_api/pixel_formats.h>
 
@@ -68,12 +69,13 @@ void printHelp()
 {
   // show help
 
-  std::cout << "gc_stream -h | [-f <fmt>] [-t] [<interface-id>:]<device-id> [n=<n>] [<key>=<value>] ..." << std::endl;
+  std::cout << "gc_stream -h | [-c] [-f <fmt>] [-t] [<interface-id>:]<device-id> [n=<n>] [@<file>] [<key>=<value>] ..." << std::endl;
   std::cout << std::endl;
   std::cout << "Stores images from the specified device after applying the given optional GenICam parameters." << std::endl;
   std::cout << std::endl;
   std::cout << "Options:" << std::endl;
   std::cout << "-h         Prints help information and exits" << std::endl;
+  std::cout << "-c         Print ChunkDataControl category for all received buffers" << std::endl;
   std::cout << "-t         Testmode, which does not store images and provides extended statistics" << std::endl;
   std::cout << "-f pnm|png Format for storing images. Default is pnm" << std::endl;
   std::cout << std::endl;
@@ -81,6 +83,7 @@ void printHelp()
   std::cout << "<interface-id> Optional GenICam ID of interface for connecting to the device" << std::endl;
   std::cout << "<device-id>    GenICam device ID, serial number or user defined name of device" << std::endl;
   std::cout << "n=<n>          Optional number of images to be received (default is 1)" << std::endl;
+  std::cout << "@<file>        Optional file with parameters as store with parameter 'gc_info -p ...'" << std::endl;
   std::cout << "<key>=<value>  Optional GenICam parameters to be changed in the given order" << std::endl;
 #ifdef _WIN32
   std::cout << std::endl;
@@ -96,7 +99,7 @@ std::string getDigitalIO(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap)
 {
   try
   {
-    std::int64_t line_status=rcg::getInteger(nodemap, "ChunkLineStatusAll", 0, 0, true);
+    int64_t line_status=rcg::getInteger(nodemap, "ChunkLineStatusAll", 0, 0, true);
 
     std::string out;
     std::string in;
@@ -335,6 +338,18 @@ void storeParameter(const std::shared_ptr<GenApi::CNodeMapRef> &nodemap,
       catch (const std::exception &)
       { }
 
+      for (int i=0; i<4; i++)
+      {
+        try
+        {
+          rcg::setEnum(nodemap, "ChunkLineSelector", ("Out"+std::to_string(i)).c_str(), true);
+          float v=static_cast<float>(rcg::getFloat(nodemap, "ChunkRcLineRatio", 0, 0, true));
+          out << "camera.out" << i << "_ratio=" << v << std::endl;
+        }
+        catch (const std::exception &)
+        { }
+      }
+
       if (scale > 0)
       {
         out << "disp.inv=" << inv << std::endl;
@@ -383,6 +398,7 @@ int main(int argc, char *argv[])
 
   try
   {
+    bool print_chunk_data=false;
     bool store=true;
     rcg::ImgFmt fmt=rcg::PNM;
     int i=1;
@@ -397,6 +413,11 @@ int main(int argc, char *argv[])
       {
         printHelp();
         return 0;
+      }
+      else if (param == "-c")
+      {
+        print_chunk_data=true;
+        i++;
       }
       else if (param == "-t")
       {
@@ -447,6 +468,7 @@ int main(int argc, char *argv[])
         i++;
         dev->open(rcg::Device::CONTROL);
         std::shared_ptr<GenApi::CNodeMapRef> nodemap=dev->getRemoteNodeMap();
+        std::vector<std::pair<std::string, std::string> > chunk_param;
 
         // try to enable chunks by default (can be disabed by the user)
 
@@ -457,31 +479,67 @@ int main(int argc, char *argv[])
         int n=1;
         while (i < argc)
         {
-          // split argument in key and value
-
           std::string key=argv[i++];
-          std::string value;
 
-          size_t k=key.find('=');
-          if (k != std::string::npos)
+          if (key.size() > 0 && key[0] == '@')
           {
-            value=key.substr(k+1);
-            key=key.substr(0, k);
-          }
+            // load streamable parameters from file into nodemap
 
-          if (key == "n") // set number of images
-          {
-            n=std::max(1, std::stoi(value));
-          }
-          else // set key=value pair through GenICam
-          {
-            if (value.size() > 0)
+            try
             {
-              rcg::setString(nodemap, key.c_str(), value.c_str(), true);
+              rcg::loadStreamableParameters(nodemap, key.substr(1).c_str(), true);
             }
-            else
+            catch (const std::exception &ex)
             {
-              rcg::callCommand(nodemap, key.c_str(), true);
+              std::cerr << "Warning: Loading of parameters from file '" << key.substr(1) <<
+                "' failed at least partially" << std::endl;
+              std::cerr << ex.what() << std::endl;
+            }
+          }
+          else
+          {
+            // split argument in key and value
+
+            std::string value;
+
+            size_t k=key.find('=');
+            if (k != std::string::npos)
+            {
+              value=key.substr(k+1);
+              key=key.substr(0, k);
+            }
+
+            if (key == "n") // set number of images
+            {
+              n=std::max(1, std::stoi(value));
+            }
+            else // set key=value pair through GenICam
+            {
+              if (value.size() > 0)
+              {
+                try
+                {
+                  rcg::setString(nodemap, key.c_str(), value.c_str(), true);
+                }
+                catch (const std::exception &)
+                {
+                  // chunk parameters may fail, try to apply them after
+                  // attaching the buffer
+
+                  if (key.compare(0, 5, "Chunk") == 0)
+                  {
+                    chunk_param.push_back(std::pair<std::string, std::string>(key, value));
+                  }
+                  else
+                  {
+                    throw;
+                  }
+                }
+              }
+              else
+              {
+                rcg::callCommand(nodemap, key.c_str(), true);
+              }
             }
           }
         }
@@ -610,20 +668,22 @@ int main(int argc, char *argv[])
 
                         if (name.size() == 0)
                         {
-                          if (component == "IntensityCombined")
+                          if (component == "IntensityCombined" || component == "RawCombined")
                           {
                             // splitting left and right image of combined format of
                             // Roboceptions rc_visard camera
 
+                            std::string comp_name = component.substr(0, component.size() - 8);
+
                             size_t h2=buffer->getHeight(part)/2;
-                            name=storeBuffer(fmt, nodemap, "Intensity", buffer, part, 0, h2);
+                            name=storeBuffer(fmt, nodemap, comp_name, buffer, part, 0, h2);
 
                             if (name.size() > 0)
                             {
                               std::cout << "Image '" << name << "' stored" << std::endl;
                             }
 
-                            name=storeBuffer(fmt, nodemap, "IntensityRight", buffer, part, h2, h2);
+                            name=storeBuffer(fmt, nodemap, comp_name.append("Right"), buffer, part, h2, h2);
 
                             if (name.size() > 0)
                             {
@@ -652,10 +712,11 @@ int main(int argc, char *argv[])
                           {
                             storeParameter(nodemap, component, buffer, 0, true);
                           }
-                          else if (component == "IntensityCombined")
+                          else if (component == "IntensityCombined" || component == "RawCombined")
                           {
+                            std::string comp_name = component.substr(0, component.size() - 8);
                             size_t h2=buffer->getHeight(part)/2;
-                            storeParameter(nodemap, "Intensity", buffer, h2, false);
+                            storeParameter(nodemap, comp_name, buffer, h2, false);
                           }
                         }
 
@@ -685,6 +746,30 @@ int main(int argc, char *argv[])
                     latency_ns+=
                       static_cast<double>(std::chrono::duration_cast<std::chrono::nanoseconds>(current.time_since_epoch()).count())-
                       static_cast<double>(buffer->getTimestampNS());
+                  }
+
+                  // optinally print chunk data
+
+                  if (print_chunk_data)
+                  {
+                    // apply chunk parameters
+
+                    for (size_t i=0; i<chunk_param.size(); i++)
+                    {
+                      rcg::setString(nodemap, chunk_param[i].first.c_str(),
+                        chunk_param[i].second.c_str(), true);
+                    }
+
+                    // print chunk data
+
+                    std::cout << std::endl;
+
+                    if (!rcg::printNodemap(nodemap, "ChunkDataControl", 100, false))
+                    {
+                      std::cout << "Cannot find node 'ChunkDataControl'" << std::endl;
+                    }
+
+                    std::cout << std::endl;
                   }
                 }
                 else
