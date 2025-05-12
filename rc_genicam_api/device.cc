@@ -735,11 +735,19 @@ std::shared_ptr<Device> getDevice(const char *id, uint64_t timeout)
     std::string interfid;
     std::string devid=id;
 
-    size_t p=devid.find(':');
+    // First try with the '|' delimiter. Then try ':'
+    size_t p=devid.find('|');
     if (p != std::string::npos)
     {
       interfid=devid.substr(0, p);
       devid=devid.substr(p+1);
+    } else {
+      p=devid.find(':');
+      if (p != std::string::npos)
+      {
+        interfid=devid.substr(0, p);
+        devid=devid.substr(p+1);
+      }
     }
 
     // go through all systems
